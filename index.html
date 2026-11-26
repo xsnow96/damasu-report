@@ -49,6 +49,14 @@ body {
   padding-block: 32px 64px;
 }
 .doc { max-width: 1080px; margin: 0 auto; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
+/* 폰: 바깥 여백과 테두리 없이 화면 전체를 쓴다. 글 여백은 .cover / .inner 가 맡는다 */
+@media (max-width: 640px) {
+  body { background: var(--paper); padding-block: 0; padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+  .doc { border: 0; border-radius: 0; }
+  .cover { padding: 24px 18px 20px; }
+  .inner { padding: 24px 18px 40px; gap: 36px; }
+  .summary { margin-inline: -6px; padding: 20px 14px; }
+}
 .inner { padding: 40px clamp(18px, 5vw, 56px); display: flex; flex-direction: column; gap: 44px; }
 h1, h2, h3 { text-wrap: pretty; margin: 0; line-height: 1.35; }
 h1 { font-size: clamp(26px, 4.4vw, 34px); font-weight: 700; letter-spacing: -0.01em; }
