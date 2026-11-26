@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>네 사람 경기 기록 분석</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* 레이아웃: 한 줄 760px 본문의 정식 보고서. 표지 → 요약 → 본문 절 → 데이터와 기준(맨 아래) */
+:root {
+  --bg: #f4f6f8;
+  --paper: #ffffff;
+  --fg: #16202a;
+  --muted: #5a6672;
+  --line: #dde2e7;
+  --accent: #1f5f99;      /* 당구대 천의 푸른색 */
+  --accent-soft: #e5eef7;
+  --warm: #c4602a;        /* 꼴찌 쪽 */
+  --warm-soft: #f8ebe3;
+  --dot: #9aa4ae;
+  --ghost: #d3d9df;
+  --p1: #257de0; --p2: #f47230; --p3: #00b894; --p4: #f2a600;  /* 사람 색: 최석우 · 김지훈 · 임재균 · 김인수 */
+  --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1317; --paper: #171c21; --fg: #e6ebf0; --muted: #9ba6b1; --line: #2a323a;
+    --accent: #5d9fdb; --accent-soft: #1c2a38; --warm: #e0824f; --dot: #5f6a75; --ghost: #333c45;
+    --p1: #338ced; --p2: #e76624; --p3: #00a888; --p4: #d28e05; --warm-soft: #352419;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1317; --paper: #171c21; --fg: #e6ebf0; --muted: #9ba6b1; --line: #2a323a;
+  --accent: #5d9fdb; --accent-soft: #1c2a38; --warm: #e0824f; --dot: #5f6a75; --ghost: #333c45;
+  --p1: #338ced; --p2: #e76624; --p3: #00a888; --p4: #d28e05; --warm-soft: #352419;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font);
+  font-size: 15.5px; line-height: 1.7; word-break: keep-all;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.doc { max-width: 1080px; margin: 0 auto; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
+.inner { padding: 40px clamp(18px, 5vw, 56px); display: flex; flex-direction: column; gap: 44px; }
+h1, h2, h3 { text-wrap: pretty; margin: 0; line-height: 1.35; }
+h1 { font-size: clamp(26px, 4.4vw, 34px); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 21px; font-weight: 700; display: flex; gap: 12px; align-items: baseline; }
+h2 .no { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; }
+h3 { font-size: 16.5px; font-weight: 600; }
+p { margin: 0; }
+section { display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 16px; }
+.lead { font-size: 17px; font-weight: 500; }
+.note { color: var(--muted); font-size: 13.5px; }
+ul.points { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; }
+ul.points b { font-weight: 600; }
+
+/* 표지 */
+.cover { border-bottom: 1px solid var(--line); padding: 40px clamp(18px, 5vw, 56px) 32px; display: flex; flex-direction: column; gap: 14px; }
+.eyebrow { font-size: 12.5px; letter-spacing: 0.12em; color: var(--accent); font-weight: 600; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--muted); font-size: 13.5px; }
+.meta b { color: var(--fg); font-weight: 600; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13.5px; }
+nav.toc a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); border-color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 요약 */
+.summary { background: var(--accent-soft); border-radius: 6px; padding: 24px clamp(16px, 3vw, 28px); display: flex; flex-direction: column; gap: 18px; }
+.people { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .people { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.person { background: var(--paper); border-radius: 6px; padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.person .name { font-weight: 700; font-size: 16px; }
+.person .avg { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.person .avg small { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.person dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; }
+.person dt { color: var(--muted); }
+.person dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+.findings { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.findings li { display: grid; grid-template-columns: 6px 1fr; gap: 12px; }
+.findings li::before { content: ""; background: var(--accent); border-radius: 3px; }
+.findings b { font-weight: 600; margin-right: 0.35em; }
+
+/* 표 */
+.table-wrap { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: right; overflow-wrap: break-word; }
+@media (max-width: 640px) { table { font-size: 12.5px; } th, td { padding: 7px 6px; } }
+.matrix td, .matrix th { text-align: center; vertical-align: middle; }
+.matrix td:first-child, .matrix th:first-child { text-align: left; }
+.matrix .v { display: block; font-size: 16px; font-weight: 600; }
+.matrix .d { display: block; font-size: 12px; color: var(--muted); }
+.matrix td.pos { background: var(--accent-soft); }
+.matrix td.neg { background: var(--warm-soft); }
+.matrix td.self { color: var(--muted); background: var(--bg); }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-weight: 600; color: var(--muted); font-size: 12.5px; background: var(--bg); }
+tbody tr:last-child td { border-bottom: 0; }
+td.l { text-align: left; }
+.hl { color: var(--warm); font-weight: 600; }
+.ac { color: var(--accent); font-weight: 600; }
+
+/* 차트 */
+figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+figcaption { display: flex; flex-direction: column; gap: 2px; }
+figcaption .t { font-weight: 600; }
+figcaption .s { color: var(--muted); font-size: 13px; }
+.multiples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+@media (max-width: 600px) { .multiples { grid-template-columns: minmax(0, 1fr); } }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { font-family: var(--font); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 6px; }
+.source { color: var(--muted); font-size: 12px; }
+
+.qs { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+footer.end { border-top: 1px solid var(--line); padding-top: 28px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+</head>
+<body>
+<article class="doc">
+  <header class="cover">
+    <div class="eyebrow">다마수측정기 · 경기 기록 분석 보고서</div>
+    <h1>네 사람 경기 기록 분석</h1>
+    <div class="meta">
+      <span>대상 <b>김지훈 · 최석우 · 김인수 · 임재균</b></span>
+      <span>기간 <b>2026-09-16 ~ 11-25</b></span>
+      <span>경기 <b>33경기</b> (3인 16 · 4인 17)</span>
+      <span>작성 <b>2026-11-26</b></span>
+    </div>
+    <nav class="toc" aria-label="목차">
+      <a href="#summary">요약</a><a href="#s1">개인 성적</a><a href="#s2">추이</a><a href="#s3">순위</a>
+      <a href="#s4">앞뒤 순서의 영향</a><a href="#s5">다마수</a><a href="#s6">경기 조건</a><a href="#s7">남은 질문</a><a href="#data">데이터와 기준</a>
+    </nav>
+  </header>
+
+  <div class="inner">
+    <section id="summary" class="summary" aria-labelledby="h-summary">
+      <h2 id="h-summary">요약</h2>
+      <p class="lead">실력 순서는 두 달 내내 그대로였고, 승부는 다마수가 갈랐습니다. 누가 바로 앞에서 치는지는 결과에 영향을 주지 않았습니다.</p>
+      <div class="people" id="people"></div>
+      <p class="note">Average는 최근 10경기의 갯수/이닝 평균입니다. 추천점수는 개인별 최근 10경기와 기준 이닝 비율 60%로 냈습니다.</p>
+      <ul class="findings">
+        <li><div><b>꼴찌는 김인수가 가장 많았습니다 — 31경기 중 12번(39%).</b>1등도 11번으로 가장 많아, 중간 등수 없이 양 끝에 몰렸습니다. 다음으로 꼴찌가 많은 사람은 임재균(23경기 중 8번)입니다.</div></li>
+        <li><div><b>다마수 1~2점이 승부를 바꿉니다.</b>김인수는 다마수를 12에서 6으로 내린 뒤 Average는 0.259 → 0.247로 그대로였지만, 다마수를 다 친 비율은 8% → 88%가 됐습니다.</div></li>
+        <li><div><b>앞뒤 순서의 영향은 보이지 않았습니다.</b>바로 앞 사람이 누구인지 박상규까지 14가지 조합을 모두 봤지만, 뒤 사람의 이닝당 득점 차이는 모두 우연 범위 안이었습니다.</div></li>
+        <li><div><b>4인 경기의 1·2번 순번은 다 친 비율이 낮았습니다.</b>순번은 무작위로 정하므로 사람 차이 때문은 아니지만, 득점력은 평소와 같고 순번마다 17경기 안팎이라 우연일 수 있습니다.</div></li>
+        <li><div><b>두 달 동안 실력은 거의 변하지 않았습니다.</b>처음 10경기와 최근 10경기의 Average 차이가 네 사람 모두 0.03 안쪽입니다.</div></li>
+      </ul>
+    </section>
+
+    <section id="s1" aria-labelledby="h1s">
+      <h2 id="h1s"><span class="no">1</span>한눈에 보는 개인 성적</h2>
+      <p>실력(Average)은 최석우 → 김지훈 → 임재균 → 김인수 순이지만, 평균 순위가 가장 좋은 사람은 김지훈(2.03등)입니다. 다마수가 실력 차이를 메우고 있어 순위는 Average 순서를 따르지 않습니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>최석우</th><th>김지훈</th><th>임재균</th><th>김인수</th></tr></thead>
+        <tbody>
+          <tr><td>경기 수 (3인 / 4인)</td><td>27 (10 / 17)</td><td>32 (15 / 17)</td><td>23 (7 / 16)</td><td>31 (15 / 16)</td></tr>
+          <tr><td>Average 통산</td><td>0.677</td><td>0.461</td><td>0.386</td><td>0.246</td></tr>
+          <tr><td>Average 최근 10경기</td><td>0.678</td><td>0.430</td><td>0.382</td><td>0.268</td></tr>
+          <tr><td>다마수를 다 친 경기</td><td>14 (52%)</td><td>15 (47%)</td><td>6 (26%)</td><td>12 (39%)</td></tr>
+          <tr><td>1등</td><td>6 (22%)</td><td>10 (31%)</td><td>5 (22%)</td><td>11 (35%)</td></tr>
+          <tr><td>꼴찌</td><td>6 (22%)</td><td>5 (16%)</td><td>8 (35%)</td><td class="hl">12 (39%)</td></tr>
+          <tr><td>평균 순위</td><td>2.33</td><td class="ac">2.03</td><td>2.57</td><td>2.29</td></tr>
+          <tr><td>최고 하이런 (평균)</td><td>7 (4.0)</td><td>6 (3.4)</td><td>4 (2.7)</td><td>4 (2.1)</td></tr>
+          <tr><td>경기당 파울</td><td>0.84</td><td>1.20</td><td class="hl">1.95</td><td>1.24</td></tr>
+          <tr><td>한 점도 못 친 경기</td><td>0</td><td>0</td><td>1</td><td>2</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">임재균의 파울은 10-19 경기 한 번에 8번이 있었고, 이 경기를 빼도 경기당 1.67번으로 가장 많습니다. 하이런·파울은 처음 두 경기(종이 기록장에서 옮긴 경기)를 뺀 값입니다.</p>
+    </section>
+
+    <section id="s2" aria-labelledby="h2s">
+      <h2 id="h2s"><span class="no">2</span>개인별 추이</h2>
+      <p>네 사람 모두 두 달 동안 뚜렷하게 오르거나 내리지 않았습니다. 김지훈과 임재균은 10월 말부터 여러 번 순서가 바뀌었습니다.</p>
+      <figure>
+        <figcaption>
+          <span class="t">경기별 갯수/이닝과 직전 5경기 평균</span>
+          <span class="s">선은 직전 5경기 평균(다섯 번째 경기부터), 작은 점은 그 사람의 한 경기입니다. 점에 마우스를 올리면 값이 보입니다.</span>
+        </figcaption>
+        <div class="legend"><span><i style="background:var(--p1)"></i>최석우</span><span><i style="background:var(--p2)"></i>김지훈</span><span><i style="background:var(--p3)"></i>임재균</span><span><i style="background:var(--p4)"></i>김인수</span></div>
+        <div id="trend"></div>
+        <div class="source">자료: 점수판 앱 백업 2026-11-26 · 끝난 33경기</div>
+      </figure>
+      <ul class="points">
+        <li>최석우는 5경기 평균이 내내 0.54~0.81이라 다른 세 사람과 한 번도 겹치지 않았습니다.</li>
+        <li>김지훈과 임재균은 10-30 ~ 11-02, 11-05, 11-09 ~ 11-13에 임재균이 앞섰고, 11-16부터는 김지훈이 앞섭니다.</li>
+        <li>김인수는 11-20에 5경기 평균이 0.37까지 올라 10월 초 이후 가장 높았지만, 마지막 두 경기(0.24, 0.10)로 다시 내렸습니다.</li>
+      </ul>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>최석우</th><th>김지훈</th><th>임재균</th><th>김인수</th></tr></thead>
+        <tbody>
+          <tr><td>처음 10경기 → 최근 10경기</td><td>0.654 → 0.678</td><td>0.455 → 0.430</td><td>0.357 → 0.382</td><td>0.281 → 0.268</td></tr>
+          <tr><td>기복 (경기별 값의 표준편차)</td><td>0.237</td><td>0.199</td><td>0.223</td><td>0.150</td></tr>
+          <tr><td>기복 ÷ Average</td><td class="ac">0.35</td><td>0.43</td><td>0.58</td><td class="hl">0.61</td></tr>
+          <tr><td>최고 경기</td><td>10-23 · 17 / 15이닝</td><td>10-22 · 12 / 11이닝</td><td>10-30 · 11 / 11이닝</td><td>09-30 · 12 / 18이닝</td></tr>
+          <tr><td>최저 경기</td><td>10-01 · 4 / 25이닝</td><td>10-14 · 4 / 27이닝</td><td>09-30 · 0 / 29이닝</td><td>10-26 · 0 / 30이닝</td></tr>
+          <tr><td>연속으로 다 친 경기 (최장)</td><td>3</td><td>3</td><td>2</td><td>5</td></tr>
+          <tr><td>연속으로 못 친 경기 (최장)</td><td>2</td><td>5</td><td>8</td><td class="hl">11</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">«기복 ÷ Average»는 실력에 비해 얼마나 흔들리는지를 봅니다. 최석우가 가장 고르고, 김인수·임재균이 가장 크게 흔들립니다.</p>
+    </section>
+
+    <section id="s3" aria-labelledby="h3s">
+      <h2 id="h3s"><span class="no">3</span>순위: 누가 1등을, 누가 꼴찌를 많이 했나</h2>
+      <p>꼴찌를 가장 많이 한 사람은 김인수(39%)이고, 가장 적은 사람은 김지훈(16%)입니다. 김인수는 1등과 꼴찌가 경기의 4분의 3을 차지합니다.</p>
+      <figure>
+        <figcaption>
+          <span class="t">참가한 경기 가운데 1등 · 중간 · 꼴찌의 비율</span>
+          <span class="s">꼴찌 비율이 높은 순. 중간은 3인 경기의 2등, 4인 경기의 2·3등입니다.</span>
+        </figcaption>
+        <div class="legend"><span><i style="background:var(--accent)"></i>1등</span><span><i style="background:var(--ghost)"></i>중간</span><span><i style="background:var(--warm)"></i>꼴찌</span></div>
+        <div id="ranks"></div>
+      </figure>
+      <div class="table-wrap"><table>
+        <thead><tr><th>이름</th><th>3인 경기 1등 · 2등 · 꼴찌</th><th>4인 경기 1등 · 2등 · 3등 · 꼴찌</th><th>연속 꼴찌 (최장)</th></tr></thead>
+        <tbody>
+          <tr><td>김인수</td><td>5 · 4 · 6</td><td>6 · 2 · 2 · 6</td><td class="hl">6</td></tr>
+          <tr><td>임재균</td><td>2 · 1 · 4</td><td>3 · 3 · 6 · 4</td><td>2</td></tr>
+          <tr><td>최석우</td><td>5 · 3 · 2</td><td>1 · 7 · 5 · 4</td><td>2</td></tr>
+          <tr><td>김지훈</td><td>4 · 8 · 3</td><td>6 · 5 · 4 · 2</td><td>2</td></tr>
+        </tbody>
+      </table></div>
+      <ul class="points">
+        <li><b>김인수의 6연속 꼴찌</b>는 10-15 ~ 10-26입니다. 다마수를 12에서 8·7로 내리던 때이고, 6으로 내린 뒤로는 1등이 늘었습니다.</li>
+        <li><b>최석우는 4인 경기에서 1등이 한 번뿐</b>입니다(17경기 중). 3인 경기에서는 10경기 중 5번 1등이고, 4인 경기에서 Average도 낮습니다(3인 0.727, 4인 0.648).</li>
+        <li><b>김지훈은 3인 경기 15번 중 8번이 2등</b>으로, 크게 지지도 크게 이기지도 않는 쪽입니다.</li>
+        <li><b>아무도 다마수를 다 치지 못한 경기가 9번</b> 있었고, 이때는 남은 갯수로 1등이 갈렸습니다. 1등은 김지훈 3번, 임재균·김인수 2번씩, 최석우·박상규 한 번씩입니다.</li>
+        <li><b>33경기 중 11경기가 접전</b>이었습니다. 1등과 2등이 1이닝 또는 갯수 1개 안쪽에서 갈렸습니다.</li>
+      </ul>
+    </section>
+
+    <section id="s4" aria-labelledby="h4s">
+      <h2 id="h4s"><span class="no">4</span>앞뒤 순서의 영향</h2>
+      <p>바로 앞에서 친 사람이 누구든, 뒤 사람의 이닝당 득점은 자기 평소와 다르지 않았습니다. 네 사람끼리의 12가지 조합은 차이가 0.07점 안쪽이고, 박상규 뒤 2가지 조합을 더한 14가지 모두 우연으로 생길 수 있는 범위 안입니다.</p>
+      <h3>누구 뒤에서 쳤을 때의 이닝당 득점</h3>
+      <p class="note">행은 친 사람, 열은 바로 앞에서 친 사람입니다. 큰 숫자는 친 사람의 평소 이닝당 득점과의 차이이고, 그 아래는 실제 이닝당 득점 · 이닝 수 · 경기 수입니다. 파란 칸은 평소보다 더, 주황 칸은 덜 친 조합이지만 14칸 모두 우연 범위 안입니다. 박상규 열은 분석 대상이 아닌 박상규가 바로 앞에서 친 경우입니다.</p>
+      <div class="table-wrap"><table class="matrix" id="adj"></table></div>
+      <p class="note">자료: 31경기의 이닝 기록 2,587이닝. 처음 두 경기는 이닝 기록이 없어 뺐습니다. 95% 범위는 네 사람끼리의 칸이 ±0.08 ~ ±0.28점이고, 박상규 뒤 칸은 표본이 적어 ±0.17 ~ ±0.53점입니다. 최석우가 박상규 뒤에서 +0.450점을 친 것은 1경기 18이닝의 결과입니다.</p>
+      <p>순번은 경기마다 무작위로 정합니다. 그런데 최석우 바로 뒤에 임재균이 친 경기는 둘이 함께 나온 17경기 중 1경기뿐입니다. 무작위라면 평균 6경기쯤 나와야 해서 드문 일입니다(이보다 적게 나올 확률 0.6%). 다만 12가지 조합 중 하나에서 나온 결과라 우연일 수도 있습니다. 그래서 이 칸(+0.052점, 35이닝)은 표본이 가장 적습니다.</p>
+      <h3>앞 사람의 이닝 결과에 따라</h3>
+      <p>앞 사람이 득점하고 끝낸 이닝 뒤에는 다음 사람이 평소보다 0.045점 덜 쳤습니다. 공 배치가 나쁘게 남았을 가능성이 있지만, 이 차이도 우연 범위(±0.067) 안이라 영향이 있다고 할 수 없습니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>앞 사람의 이닝</th><th>경우</th><th>다음 사람 득점 (자기 평소 대비)</th><th>95% 범위</th></tr></thead>
+        <tbody>
+          <tr><td>0점으로 끝남</td><td>1,731</td><td>+0.021</td><td>±0.045</td></tr>
+          <tr><td>득점하고 끝남</td><td>618</td><td>−0.045</td><td>±0.067</td></tr>
+          <tr><td>파울로 끝남</td><td>136</td><td>−0.021</td><td>±0.150</td></tr>
+        </tbody>
+      </table></div>
+      <h3>몇 번째로 치느냐에 따라</h3>
+      <p>4인 경기에서 1·2번으로 친 사람은 자기 평소보다 다마수를 다 친 비율이 18~24%p 낮았습니다. 경기별 갯수/이닝은 평소와 0.04 안쪽으로 같았습니다. 3인 경기에서는 순번에 따른 차이가 없었습니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>4인 경기 순번</th><th>경기</th><th>다 친 비율 (자기 평소 대비)</th><th>갯수/이닝 (자기 평소 대비)</th><th>1등</th></tr></thead>
+        <tbody>
+          <tr><td>1번</td><td>17</td><td class="hl">−24%p</td><td>−0.029</td><td>5</td></tr>
+          <tr><td>2번</td><td>17</td><td class="hl">−18%p</td><td>−0.040</td><td>2</td></tr>
+          <tr><td>3번</td><td>15</td><td>+22%p</td><td>+0.037</td><td>5</td></tr>
+          <tr><td>4번</td><td>17</td><td>−1%p</td><td>+0.034</td><td>5</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">순번은 무작위로 정하므로 특정 사람이 특정 순번에 몰려서 생긴 차이는 아닙니다. 다만 순번마다 17경기 안팎이라 우연일 수 있습니다. 3번 순번 15경기는 박상규가 앉은 2경기를 뺀 수입니다.</p>
+    </section>
+
+    <section id="s5" aria-labelledby="h5s">
+      <h2 id="h5s"><span class="no">5</span>다마수는 공정한가</h2>
+      <p>다마수를 내리면 실력(Average)은 그대로인데 다 치는 비율과 순위가 크게 바뀝니다. 1점 차이로도 결과가 갈립니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>이름</th><th>건 다마수</th><th>경기</th><th>Average</th><th>다 친 비율</th><th>1등</th><th>꼴찌</th></tr></thead>
+        <tbody id="damasu"></tbody>
+      </table></div>
+      <p class="note">한두 번뿐인 다마수(최석우 19, 임재균 13·9)는 뺐습니다.</p>
+      <ul class="points">
+        <li><b>다마수 1점이 크게 작용합니다.</b> 임재균은 12에서 11로 1점 내린 4경기를 모두 다 쳤고, 최석우도 18에서 17로 내리자 다 친 비율이 43% → 67%가 됐습니다. 임재균의 11점은 4경기라 더 지켜봐야 합니다.</li>
+        <li><b>김인수는 Average와 승부 결과가 다른 다마수를 가리킵니다.</b> Average로 낸 추천점수는 8이지만, 8로 친 4경기는 한 번도 다 치지 못했고 6으로 친 8경기는 7번 다 쳤습니다. 지금 다마수는 8입니다.</li>
+        <li><b>지금 다마수는 네 사람 모두 추천점수와 같습니다.</b> 2026-11-26에 김지훈을 11 → 12로 올리고 임재균을 12 → 11로 내려, 최석우 17 · 김지훈 12 · 임재균 11 · 김인수 8이 됐습니다.</li>
+      </ul>
+    </section>
+
+    <section id="s6" aria-labelledby="h6s">
+      <h2 id="h6s"><span class="no">6</span>경기 조건별 차이</h2>
+      <p>3인 경기가 평균 27.9이닝으로 4인 경기(24.2이닝)보다 길었습니다. 경기 수에 따른 Average 차이는 최석우만 눈에 띕니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>이름</th><th>3인 경기 Average</th><th>4인 경기 Average</th></tr></thead>
+        <tbody>
+          <tr><td>최석우</td><td>0.727</td><td>0.648</td></tr>
+          <tr><td>김지훈</td><td>0.437</td><td>0.482</td></tr>
+          <tr><td>임재균</td><td>0.390</td><td>0.384</td></tr>
+          <tr><td>김인수</td><td>0.237</td><td>0.255</td></tr>
+        </tbody>
+      </table></div>
+      <p>경기 길이(경기마다 가장 긴 이닝)는 중앙값 25이닝, 가장 짧은 경기 18이닝, 가장 긴 경기 41이닝입니다. 33경기 중 9경기는 아무도 다마수를 다 치지 못하고 시간이 다 되어 끝났습니다.</p>
+    </section>
+
+    <section id="s7" aria-labelledby="h7s">
+      <h2 id="h7s"><span class="no">7</span>남은 질문</h2>
+      <ol class="qs">
+        <li>김인수의 다마수를 Average대로 8로 둘지, 승부 결과가 가리키는 7로 둘지</li>
+        <li>김지훈 12 · 임재균 11로 바꾼 뒤 다 친 비율이 어떻게 달라지는지 — 10경기쯤 쌓이면 다시 봄</li>
+        <li>4인 경기 1·2번 순번의 낮은 다 친 비율이 경기가 쌓여도 이어지는지</li>
+      </ol>
+    </section>
+
+    <footer id="data" class="end" aria-labelledby="hds">
+      <section>
+        <h2 id="hds">데이터와 기준</h2>
+        <ul class="points">
+          <li><b>자료</b>: 점수판 앱에서 내보낸 2026-11-26 백업입니다. 2026-09-16 ~ 11-25에 끝난 33경기를 봤습니다(3인 16경기, 4인 17경기).</li>
+          <li><b>뺀 경기</b>: 점수판 앱에서 지운 18경기입니다. 끝난 뒤 지운 3경기(시험 입력 2경기, 다마수를 아주 낮게 건 짧은 경기 1경기)와 끝나지 않은 채 지운 15경기입니다. 끝나지 않은 채 남은 경기는 없습니다.</li>
+          <li><b>갯수/이닝과 Average</b>: 갯수/이닝은 한 경기에서 처리한 갯수를 이닝으로 나눈 값이고, Average는 이 값을 경기마다 구해 평균 낸 것입니다. 누적 갯수를 누적 이닝으로 나눈 값이 아닙니다.</li>
+          <li><b>순위와 꼴찌</b>: 먼저 다마수를 다 친 사람이 앞서고, 시간이 다 되어 끝나면 남은 갯수가 적은 사람이 앞섭니다. 점수판 앱이 매긴 순위를 그대로 썼습니다. 꼴찌는 그 경기의 마지막 순위(3인 경기 3등, 4인 경기 4등)입니다.</li>
+          <li><b>추천점수</b>: 개인별 최근 10경기의 Average로, 기준 Average(다마수 ÷ 기준 이닝)가 그 이하인 다마수 중 가장 큰 값입니다. 기준 이닝은 (60 − 다마수) × 0.6입니다.</li>
+          <li><b>이닝 기록(4절)</b>: 경기 중 입력한 득점·이닝 끝·파울 기록에서 이닝을 다시 세었습니다. 처음 두 경기(09-16, 09-22)는 종이 기록장에서 옮긴 것이라 이닝 기록이 없습니다. 파울은 점수에서 1점씩 빠지고, 마지막 이닝은 끝 표시 없이 끝납니다. 다시 센 값은 이닝 수가 109건 모두 ±1 안에서, 점수가 109건 중 87건이 ±1 안에서 앱 요약과 맞아 대략값입니다.</li>
+          <li><b>순번</b>: 3인 경기든 4인 경기든 경기마다 무작위로 정합니다(기획자가 2026-11-26에 알려 줌).</li>
+          <li><b>지금 다마수</b>: 백업 시점에는 김지훈 11 · 임재균 12였고, 2026-11-26에 김지훈 12 · 임재균 11로 바꿨습니다(기획자가 알려 줌). 요약 카드의 «지금 다마수»는 바꾼 값입니다.</li>
+          <li><b>박상규</b>: 3경기에 참가했지만 분석 대상에서 뺐습니다. 박상규가 나온 경기에서 다른 사람의 순위는 그대로 두었습니다.</li>
+          <li><b>표본</b>: 사람당 23~32경기입니다. 두 사람이 함께 나온 경기나 순번별 경기는 20경기 안팎이라, 몇 경기 차이는 우연일 수 있습니다.</li>
+        </ul>
+      </section>
+    </footer>
+  </div>
+</article>
+
+<script>
+const DATA = {"people":[{"name":"최석우","avg":0.678,"now":17,"rec":17,"first":6,"last":6,"games":27},{"name":"김지훈","avg":0.43,"now":12,"rec":12,"first":10,"last":5,"games":32},{"name":"임재균","avg":0.382,"now":11,"rec":11,"first":5,"last":8,"games":23},{"name":"김인수","avg":0.268,"now":8,"rec":8,"first":11,"last":12,"games":31}],"trend":[{"date":"2026-09-16","name":"최석우","v":0.72,"roll5":null,"target":18},{"date":"2026-09-22","name":"최석우","v":0.8,"roll5":null,"target":18},{"date":"2026-09-29","name":"최석우","v":0.25,"roll5":null,"target":18},{"date":"2026-09-30","name":"최석우","v":0.783,"roll5":null,"target":18},{"date":"2026-10-01","name":"최석우","v":0.16,"roll5":0.543,"target":18},{"date":"2026-10-07","name":"최석우","v":0.778,"roll5":0.554,"target":18},{"date":"2026-10-08","name":"최석우","v":1,"roll5":0.594,"target":18},{"date":"2026-10-12","name":"최석우","v":0.9,"roll5":0.724,"target":18},{"date":"2026-10-13","name":"최석우","v":0.667,"roll5":0.701,"target":18},{"date":"2026-10-14","name":"최석우","v":0.481,"roll5":0.765,"target":18},{"date":"2026-10-15","name":"최석우","v":0.556,"roll5":0.721,"target":18},{"date":"2026-10-22","name":"최석우","v":0.607,"roll5":0.642,"target":17},{"date":"2026-10-23","name":"최석우","v":1.133,"roll5":0.689,"target":17},{"date":"2026-10-26","name":"최석우","v":0.72,"roll5":0.7,"target":18},{"date":"2026-10-28","name":"최석우","v":0.423,"roll5":0.688,"target":18},{"date":"2026-11-02","name":"최석우","v":1.063,"roll5":0.789,"target":17},{"date":"2026-11-04","name":"최석우","v":0.458,"roll5":0.759,"target":19},{"date":"2026-11-05","name":"최석우","v":0.484,"roll5":0.63,"target":18},{"date":"2026-11-06","name":"최석우","v":0.472,"roll5":0.58,"target":17},{"date":"2026-11-09","name":"최석우","v":1,"roll5":0.695,"target":17},{"date":"2026-11-12","name":"최석우","v":0.545,"roll5":0.592,"target":17},{"date":"2026-11-16","name":"최석우","v":0.81,"roll5":0.662,"target":17},{"date":"2026-11-18","name":"최석우","v":0.833,"roll5":0.732,"target":17},{"date":"2026-11-19","name":"최석우","v":0.85,"roll5":0.808,"target":17},{"date":"2026-11-20","name":"최석우","v":0.455,"roll5":0.699,"target":17},{"date":"2026-11-24","name":"최석우","v":0.762,"roll5":0.742,"target":17},{"date":"2026-11-25","name":"최석우","v":0.567,"roll5":0.693,"target":17},{"date":"2026-09-16","name":"김지훈","v":0.609,"roll5":null,"target":14},{"date":"2026-09-22","name":"김지훈","v":0.308,"roll5":null,"target":14},{"date":"2026-09-29","name":"김지훈","v":0.458,"roll5":null,"target":14},{"date":"2026-09-30","name":"김지훈","v":0.241,"roll5":null,"target":14},{"date":"2026-10-01","name":"김지훈","v":0.583,"roll5":0.44,"target":14},{"date":"2026-10-07","name":"김지훈","v":0.667,"roll5":0.451,"target":14},{"date":"2026-10-08","name":"김지훈","v":0.778,"roll5":0.545,"target":14},{"date":"2026-10-12","name":"김지훈","v":0.583,"roll5":0.57,"target":14},{"date":"2026-10-13","name":"김지훈","v":0.171,"roll5":0.557,"target":14},{"date":"2026-10-14","name":"김지훈","v":0.148,"roll5":0.469,"target":14},{"date":"2026-10-15","name":"김지훈","v":0.444,"roll5":0.425,"target":14},{"date":"2026-10-19","name":"김지훈","v":0.433,"roll5":0.356,"target":14},{"date":"2026-10-20","name":"김지훈","v":0.268,"roll5":0.293,"target":14},{"date":"2026-10-22","name":"김지훈","v":1.091,"roll5":0.477,"target":12},{"date":"2026-10-23","name":"김지훈","v":0.6,"roll5":0.567,"target":12},{"date":"2026-10-26","name":"김지훈","v":0.3,"roll5":0.539,"target":14},{"date":"2026-10-27","name":"김지훈","v":0.684,"roll5":0.589,"target":13},{"date":"2026-10-28","name":"김지훈","v":0.346,"roll5":0.604,"target":13},{"date":"2026-10-29","name":"김지훈","v":0.571,"roll5":0.5,"target":12},{"date":"2026-10-30","name":"김지훈","v":0.565,"roll5":0.493,"target":13},{"date":"2026-11-04","name":"김지훈","v":0.375,"roll5":0.508,"target":14},{"date":"2026-11-05","name":"김지훈","v":0.226,"roll5":0.417,"target":14},{"date":"2026-11-06","name":"김지훈","v":0.289,"roll5":0.405,"target":14},{"date":"2026-11-09","name":"김지훈","v":0.182,"roll5":0.327,"target":12},{"date":"2026-11-12","name":"김지훈","v":0.55,"roll5":0.324,"target":11},{"date":"2026-11-13","name":"김지훈","v":0.522,"roll5":0.354,"target":12},{"date":"2026-11-16","name":"김지훈","v":0.381,"roll5":0.385,"target":12},{"date":"2026-11-18","name":"김지훈","v":0.611,"roll5":0.449,"target":11},{"date":"2026-11-19","name":"김지훈","v":0.6,"roll5":0.533,"target":12},{"date":"2026-11-20","name":"김지훈","v":0.353,"roll5":0.493,"target":12},{"date":"2026-11-24","name":"김지훈","v":0.429,"roll5":0.475,"target":11},{"date":"2026-11-25","name":"김지훈","v":0.379,"roll5":0.474,"target":11},{"date":"2026-09-22","name":"임재균","v":0.231,"roll5":null,"target":12},{"date":"2026-09-29","name":"임재균","v":0.458,"roll5":null,"target":12},{"date":"2026-09-30","name":"임재균","v":0,"roll5":null,"target":12},{"date":"2026-10-01","name":"임재균","v":0.32,"roll5":null,"target":12},{"date":"2026-10-07","name":"임재균","v":0.278,"roll5":0.257,"target":12},{"date":"2026-10-08","name":"임재균","v":0.526,"roll5":0.316,"target":12},{"date":"2026-10-19","name":"임재균","v":0.3,"roll5":0.285,"target":12},{"date":"2026-10-20","name":"임재균","v":0.244,"roll5":0.334,"target":12},{"date":"2026-10-22","name":"임재균","v":0.529,"roll5":0.375,"target":9},{"date":"2026-10-26","name":"임재균","v":0.688,"roll5":0.457,"target":11},{"date":"2026-10-27","name":"임재균","v":0.333,"roll5":0.419,"target":12},{"date":"2026-10-28","name":"임재균","v":0.154,"roll5":0.39,"target":12},{"date":"2026-10-30","name":"임재균","v":1,"roll5":0.541,"target":11},{"date":"2026-11-02","name":"임재균","v":0.429,"roll5":0.521,"target":13},{"date":"2026-11-04","name":"임재균","v":0.292,"roll5":0.441,"target":12},{"date":"2026-11-05","name":"임재균","v":0.219,"roll5":0.419,"target":12},{"date":"2026-11-06","name":"임재균","v":0.079,"roll5":0.404,"target":12},{"date":"2026-11-09","name":"임재균","v":0.688,"roll5":0.341,"target":11},{"date":"2026-11-12","name":"임재균","v":0.571,"roll5":0.37,"target":12},{"date":"2026-11-13","name":"임재균","v":0.348,"roll5":0.381,"target":13},{"date":"2026-11-18","name":"임재균","v":0.647,"roll5":0.467,"target":11},{"date":"2026-11-19","name":"임재균","v":0.263,"roll5":0.503,"target":12},{"date":"2026-11-24","name":"임재균","v":0.286,"roll5":0.423,"target":12},{"date":"2026-09-16","name":"김인수","v":0.16,"roll5":null,"target":12},{"date":"2026-09-22","name":"김인수","v":0.588,"roll5":null,"target":12},{"date":"2026-09-29","name":"김인수","v":0.125,"roll5":null,"target":12},{"date":"2026-09-30","name":"김인수","v":0.667,"roll5":null,"target":12},{"date":"2026-10-01","name":"김인수","v":0.36,"roll5":0.38,"target":12},{"date":"2026-10-07","name":"김인수","v":0.111,"roll5":0.37,"target":12},{"date":"2026-10-12","name":"김인수","v":0.087,"roll5":0.27,"target":12},{"date":"2026-10-13","name":"김인수","v":0.229,"roll5":0.291,"target":12},{"date":"2026-10-14","name":"김인수","v":0.296,"roll5":0.217,"target":12},{"date":"2026-10-15","name":"김인수","v":0.185,"roll5":0.182,"target":12},{"date":"2026-10-19","name":"김인수","v":0.1,"roll5":0.179,"target":12},{"date":"2026-10-20","name":"김인수","v":0.195,"roll5":0.201,"target":12},{"date":"2026-10-22","name":"김인수","v":0.179,"roll5":0.191,"target":8},{"date":"2026-10-23","name":"김인수","v":0.368,"roll5":0.205,"target":8},{"date":"2026-10-26","name":"김인수","v":0,"roll5":0.168,"target":7},{"date":"2026-10-27","name":"김인수","v":0.316,"roll5":0.212,"target":6},{"date":"2026-10-28","name":"김인수","v":0.115,"roll5":0.196,"target":7},{"date":"2026-10-29","name":"김인수","v":0.259,"roll5":0.212,"target":7},{"date":"2026-10-30","name":"김인수","v":0.13,"roll5":0.164,"target":7},{"date":"2026-11-02","name":"김인수","v":0.207,"roll5":0.206,"target":6},{"date":"2026-11-04","name":"김인수","v":0.273,"roll5":0.197,"target":6},{"date":"2026-11-05","name":"김인수","v":0.2,"roll5":0.214,"target":6},{"date":"2026-11-09","name":"김인수","v":0.273,"roll5":0.217,"target":6},{"date":"2026-11-12","name":"김인수","v":0,"roll5":0.19,"target":6},{"date":"2026-11-13","name":"김인수","v":0.333,"roll5":0.216,"target":7},{"date":"2026-11-16","name":"김인수","v":0.333,"roll5":0.228,"target":6},{"date":"2026-11-18","name":"김인수","v":0.375,"roll5":0.263,"target":6},{"date":"2026-11-19","name":"김인수","v":0.389,"roll5":0.286,"target":7},{"date":"2026-11-20","name":"김인수","v":0.438,"roll5":0.374,"target":7},{"date":"2026-11-24","name":"김인수","v":0.238,"roll5":0.355,"target":8},{"date":"2026-11-25","name":"김인수","v":0.103,"roll5":0.309,"target":8}],"ranks":[{"name":"최석우","first":6,"last":6,"games":27},{"name":"김지훈","first":10,"last":5,"games":32},{"name":"임재균","first":5,"last":8,"games":23},{"name":"김인수","first":11,"last":12,"games":31}],"adj":[{"a":"최석우","b":"김지훈","m":0.6319,"diff":-0.0291,"ci":0.1668,"n":182},{"a":"최석우","b":"임재균","m":0.7249,"diff":0.0639,"ci":0.1636,"n":189},{"a":"최석우","b":"김인수","m":0.5914,"diff":-0.0695,"ci":0.165,"n":186},{"a":"최석우","b":"박상규","m":1.1111,"diff":0.4502,"ci":0.5303,"n":18},{"a":"김지훈","b":"최석우","m":0.5,"diff":0.0088,"ci":0.1144,"n":280},{"a":"김지훈","b":"임재균","m":0.4783,"diff":-0.0129,"ci":0.163,"n":138},{"a":"김지훈","b":"김인수","m":0.492,"diff":0.0008,"ci":0.1086,"n":311},{"a":"임재균","b":"최석우","m":0.4857,"diff":0.0521,"ci":0.2839,"n":35},{"a":"임재균","b":"김지훈","m":0.4417,"diff":0.008,"ci":0.0998,"n":283},{"a":"임재균","b":"김인수","m":0.4208,"diff":-0.0129,"ci":0.1241,"n":183},{"a":"김인수","b":"최석우","m":0.2538,"diff":-0.0189,"ci":0.0775,"n":260},{"a":"김인수","b":"김지훈","m":0.2944,"diff":0.0217,"ci":0.0854,"n":214},{"a":"김인수","b":"임재균","m":0.2987,"diff":0.026,"ci":0.1007,"n":154},{"a":"김인수","b":"박상규","m":0.2308,"diff":-0.042,"ci":0.1733,"n":52}],"damasu":[{"name":"최석우","t":18,"g":14,"avg":0.623,"fin":43,"first":2,"last":3},{"name":"최석우","t":17,"g":12,"avg":0.758,"fin":67,"first":4,"last":2},{"name":"김지훈","t":14,"g":17,"avg":0.405,"fin":24,"first":6,"last":3},{"name":"김지훈","t":13,"g":3,"avg":0.532,"fin":67,"first":0,"last":0},{"name":"김지훈","t":12,"g":8,"avg":0.537,"fin":75,"first":2,"last":2},{"name":"김지훈","t":11,"g":4,"avg":0.492,"fin":75,"first":2,"last":0},{"name":"임재균","t":12,"g":16,"avg":0.285,"fin":6,"first":2,"last":6},{"name":"임재균","t":11,"g":4,"avg":0.756,"fin":100,"first":3,"last":0},{"name":"김인수","t":12,"g":12,"avg":0.259,"fin":8,"first":2,"last":6},{"name":"김인수","t":8,"g":4,"avg":0.222,"fin":0,"first":0,"last":3},{"name":"김인수","t":7,"g":7,"avg":0.238,"fin":57,"first":4,"last":2},{"name":"김인수","t":6,"g":8,"avg":0.247,"fin":88,"first":5,"last":1}],"base":{"최석우":{"m":0.6609,"n":581},"김지훈":{"m":0.4912,"n":737},"임재균":{"m":0.4337,"n":505},"김인수":{"m":0.2727,"n":693}},"adjGames":{"김인수<최석우":12,"김지훈<김인수":13,"임재균<김지훈":13,"최석우<임재균":9,"김인수<박상규":2,"박상규<김지훈":2,"김지훈<최석우":12,"김인수<김지훈":8,"임재균<김인수":8,"김지훈<임재균":5,"김인수<임재균":7,"최석우<김지훈":7,"최석우<김인수":8,"박상규<임재균":1,"최석우<박상규":1,"임재균<최석우":1}};
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs = {}, parent) => {
+  const n = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (parent) parent.appendChild(n);
+  return n;
+};
+const txt = (parent, x, y, s, attrs = {}) => { const t = el('text', { x, y, ...attrs }, parent); t.textContent = s; return t; };
+const tip = (node, s) => { const t = el('title', {}, node); t.textContent = s; };
+const f2 = v => v.toFixed(2), f3 = v => v.toFixed(3);
+const sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(3);
+
+// 요약 카드
+(function people() {
+  const box = document.getElementById('people');
+  for (const p of DATA.people) {
+    const d = document.createElement('div');
+    d.className = 'person';
+    const same = p.now === p.rec;
+    d.innerHTML = `<div class="name">${p.name}</div>
+      <div class="avg">${f3(p.avg)}<small>Average</small></div>
+      <dl>
+        <dt>지금 다마수</dt><dd>${p.now}</dd>
+        <dt>추천점수</dt><dd>${p.rec}${same ? '' : (p.rec > p.now ? ' ▲' : ' ▼')}</dd>
+        <dt>1등 · 꼴찌</dt><dd>${p.first} · ${p.last}</dd>
+        <dt>경기</dt><dd>${p.games}</dd>
+      </dl>`;
+    box.appendChild(d);
+  }
+})();
+
+// 추이: 사람마다 한 칸
+(function trend() {
+  const box = document.getElementById('trend');
+  const W = 960, H = 400, L = 40, R = 110, T = 14, B = 30;
+  const base = Date.parse('2026-09-16'), span = (Date.parse('2026-11-25') - base) / 864e5;
+  const x = s => L + (Date.parse(s) - base) / 864e5 / span * (W - L - R);
+  const y = v => T + (1 - v / 1.2) * (H - T - B);
+  const people = [['최석우', 'var(--p1)'], ['김지훈', 'var(--p2)'], ['임재균', 'var(--p3)'], ['김인수', 'var(--p4)']];
+  const rows = n => DATA.trend.filter(r => r.name === n);
+  const path = pts => pts.map((r, i) => `${i ? 'L' : 'M'}${x(r.date).toFixed(1)},${y(r.roll5).toFixed(1)}`).join(' ');
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': '네 사람의 경기별 갯수/이닝과 직전 5경기 평균' }, box);
+  for (const v of [0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2]) {
+    el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: 'var(--line)', 'stroke-width': 1 }, svg);
+    txt(svg, L - 8, y(v) + 4, v.toFixed(1), { 'text-anchor': 'end', 'font-size': 11, fill: 'var(--muted)' });
+  }
+  for (const [d, lab] of [['2026-10-01', '10월 1일'], ['2026-10-15', '10월 15일'], ['2026-11-01', '11월 1일'], ['2026-11-15', '11월 15일']]) {
+    el('line', { x1: x(d), x2: x(d), y1: H - B, y2: H - B + 4, stroke: 'var(--muted)' }, svg);
+    txt(svg, x(d), H - B + 18, lab, { 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--muted)' });
+  }
+  // 경기 점: 옅게, 선 아래에
+  for (const [n, col] of people) {
+    for (const r of rows(n)) {
+      const c = el('circle', { cx: x(r.date), cy: y(r.v), r: 3, fill: col, 'fill-opacity': 0.3 }, svg);
+      tip(c, `${n} ${r.date.slice(5)} · 갯수/이닝 ${f3(r.v)} · 다마수 ${r.target}`);
+    }
+  }
+  const ends = [];
+  for (const [n, col] of people) {
+    const line = rows(n).filter(r => r.roll5 !== null);
+    el('path', { d: path(line), fill: 'none', stroke: 'var(--paper)', 'stroke-width': 5, 'stroke-linejoin': 'round' }, svg);
+    el('path', { d: path(line), fill: 'none', stroke: col, 'stroke-width': 2.5, 'stroke-linejoin': 'round' }, svg);
+    for (const r of line) {
+      const hit = el('circle', { cx: x(r.date), cy: y(r.roll5), r: 7, fill: 'transparent' }, svg);
+      tip(hit, `${n} ${r.date.slice(5)} · 직전 5경기 평균 ${f3(r.roll5)}`);
+    }
+    const last = line.at(-1);
+    el('circle', { cx: x(last.date), cy: y(last.roll5), r: 4, fill: col, stroke: 'var(--paper)', 'stroke-width': 2 }, svg);
+    ends.push({ n, col, last, ly: y(last.roll5) });
+  }
+  ends.sort((a, b) => a.ly - b.ly);
+  let prev = -1e9;
+  for (const e of ends) { e.ly = Math.max(e.ly, prev + 17); prev = e.ly; }
+  for (const e of ends) {
+    el('line', { x1: x(e.last.date) + 5, y1: y(e.last.roll5), x2: W - R + 8, y2: e.ly, stroke: e.col, 'stroke-width': 1 }, svg);
+    txt(svg, W - R + 12, e.ly + 4, `${e.n} ${f2(e.last.roll5)}`, { 'font-size': 12.5, 'font-weight': 600, fill: 'var(--fg)' });
+  }
+})();
+
+// 순위 비율 막대
+(function ranks() {
+  const box = document.getElementById('ranks');
+  const rows = [...DATA.ranks].sort((a, b) => b.last / b.games - a.last / a.games);
+  const W = 960, rowH = 40, L = 70, R = 10, T = 4;
+  const H = T + rows.length * rowH;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': '사람별 1등, 중간, 꼴찌 비율' }, box);
+  const w = W - L - R;
+  rows.forEach((r, i) => {
+    const y0 = T + i * rowH, h = 26;
+    txt(svg, 0, y0 + 18, r.name, { 'font-size': 14, 'font-weight': 600, fill: 'var(--fg)' });
+    const parts = [
+      ['1등', r.first, 'var(--accent)', 'var(--paper)'],
+      ['중간', r.games - r.first - r.last, 'var(--ghost)', 'var(--fg)'],
+      ['꼴찌', r.last, 'var(--warm)', 'var(--paper)'],
+    ];
+    let x0 = L;
+    parts.forEach(([lab, n, fill, ink], k) => {
+      const pw = n / r.games * w;
+      const gap = k < 2 ? 2 : 0;
+      const rect = el('rect', { x: x0, y: y0, width: Math.max(0, pw - gap), height: h, fill, rx: 3 }, svg);
+      tip(rect, `${r.name} ${lab} ${n}경기 / ${r.games}경기 (${Math.round(n / r.games * 100)}%)`);
+      if (pw > 64) txt(svg, x0 + 8, y0 + 18, `${lab} ${n} · ${Math.round(n / r.games * 100)}%`, { 'font-size': 12, 'font-weight': 600, fill: ink });
+      x0 += pw;
+    });
+  });
+})();
+
+// 앞뒤 순서: 점과 95% 범위
+(function adj() {
+  const tb = document.getElementById('adj');
+  const order = ['최석우', '김지훈', '임재균', '김인수'];
+  const cols = [...order, '박상규'];
+  let h = '<thead><tr><th>친 사람 ↓ / 바로 앞 사람 →</th><th>평소</th>' + cols.map(n => `<th>${n}</th>`).join('') + '</tr></thead><tbody>';
+  for (const a of order) {
+    const b0 = DATA.base[a];
+    h += `<tr><td><b>${a}</b></td><td><span class="v">${f3(b0.m)}</span><span class="d">${b0.n}이닝</span></td>`;
+    for (const b of cols) {
+      if (a === b) { h += '<td class="self">–</td>'; continue; }
+      const c = DATA.adj.find(z => z.a === a && z.b === b);
+      if (!c) { h += '<td class="self"><span class="d">바로 뒤에서 친 적 없음</span></td>'; continue; }
+      const g = DATA.adjGames[a + '<' + b] || 0;
+      const cls = c.diff >= 0.02 ? 'pos' : (c.diff <= -0.02 ? 'neg' : '');
+      h += `<td class="${cls}" title="${b} 바로 뒤의 ${a}: 이닝당 ${f3(c.m)}점, 평소 대비 ${sgn(c.diff)} (95% 범위 ±${f3(c.ci)})"><span class="v">${sgn(c.diff)}</span><span class="d">${f3(c.m)}점 · ${c.n}이닝 · ${g}경기</span></td>`;
+    }
+    h += '</tr>';
+  }
+  tb.innerHTML = h + '</tbody>';
+})();
+
+// 다마수 구간 표
+(function damasu() {
+  const tb = document.getElementById('damasu');
+  for (const r of DATA.damasu) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.name}</td><td>${r.t}</td><td>${r.g}</td><td>${f3(r.avg)}</td><td>${r.fin}%</td><td>${r.first}</td><td>${r.last}</td>`;
+    tb.appendChild(tr);
+  }
+})();
+</script>
+
+</body>
+</html>
